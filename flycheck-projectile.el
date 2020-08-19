@@ -87,7 +87,7 @@ reload the project-wide error list."
     (flycheck-projectile--reload-errors)))
 
 (defun flycheck-projectile--handle-flycheck-off ()
-  "Handle flycheck-mode being turned off.
+  "Handle `flycheck-mode' being turned off.
 Reloads the project-wide error list, if the current buffer does
 not have flycheck-mode enabled."
   (unless flycheck-mode
