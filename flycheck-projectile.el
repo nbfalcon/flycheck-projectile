@@ -88,11 +88,10 @@ reload the project-wide error list."
 
 (defun flycheck-projectile--handle-flycheck-off ()
   "Handle flycheck-mode being turned off.
-Reloads the project-wide error list, without the errors of the
-buffer whose `flycheck-mode' was just turned off, if it is part
-of `flycheck-projectile--project'."
+Reloads the project-wide error list, if the current buffer does
+not have flycheck-mode enabled."
   (unless flycheck-mode
-    (flycheck-projectile--maybe-reload)))
+    (flycheck-projectile--reload-errors)))
 
 (define-minor-mode flycheck-projectile--project-buffer-mode
   "Minor mode to help auto-reload the project's error list.
@@ -155,12 +154,12 @@ If flycheck was enabled, track the buffer with
   (interactive)
   (quit-window t))
 
-(defvar flycheck-projectile-error-list-mode-map
+(defvar flycheck-projectile--error-list-mode-map
   (let ((map (copy-keymap flycheck-error-list-mode-map)))
     (define-key map (kbd "RET") #'flycheck-projectile-error-list-goto-error)
     (define-key map (kbd "q") #'flycheck-projectile--quit-kill-window)
     map))
-(define-derived-mode flycheck-projectile-error-list-mode tabulated-list-mode
+(define-derived-mode flycheck-projectile--error-list-mode tabulated-list-mode
   "Flycheck project errors"
   "The mode for this plugins' project-wide error list."
   (setq tabulated-list-format flycheck-error-list-format
@@ -187,7 +186,7 @@ Start the project search at DIR."
       ;; If the user kills the buffer, leave no hooks behind; for they would
       ;; impair the performance. Pressing `q' kills the buffer.
       (add-hook 'kill-buffer-hook #'flycheck-projectile--global-teardown nil t)
-      (flycheck-projectile-error-list-mode)))
+      (flycheck-projectile--error-list-mode)))
 
   (when flycheck-projectile--project ;; the user didn't press q
     (flycheck-projectile--global-teardown))
@@ -198,7 +197,7 @@ Start the project search at DIR."
       (setq flycheck-projectile--project project)
 
       ;; even if the user presses C-g here, the kill hook was already set up;
-      ;; this way, he can just kill the buffer to restore performance.
+      ;; this way, they can just kill the buffer to restore performance.
       (flycheck-projectile--global-setup)
       (revert-buffer) ;; reload the list
       ))
