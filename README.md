@@ -1,6 +1,6 @@
 # About
 Ever wanted to have live-updating list of all flycheck errors in your project?
-You've come to the right place! flycheck-projectile is an emacs plugin that can
+You've come to the right place! flycheck-projectile is an Emacs plugin that can
 gather all errors in your project and display them in a
 `flycheck-list-errors`-like table.
 
