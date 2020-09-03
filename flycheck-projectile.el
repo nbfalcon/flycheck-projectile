@@ -18,7 +18,7 @@
 ;; Author: Nikita Bloshchanevich <nikblos@outlook.com>
 ;; URL: https://github.com/nbfalcon/flycheck-projectile
 ;; Package-Requires: ((emacs "25.1") (flycheck "31") (projectile "2.2"))
-;; Version: 0.1
+;; Version: 0.1.1
 
 ;;; Commentary:
 ;; Implement per-project errors by leveraging flycheck and projectile.
@@ -93,10 +93,16 @@ not have flycheck-mode enabled."
   (unless flycheck-mode
     (flycheck-projectile--reload-errors)))
 
+(defun flycheck-projectile--remove-buffer-errors ()
+  "Reload the error list without the current buffer's errors."
+  (let ((flycheck-current-errors))
+    (flycheck-projectile--reload-errors)))
+
 (define-minor-mode flycheck-projectile--project-buffer-mode
   "Minor mode to help auto-reload the project's error list.
-It sets up various hooks for the current buffer so that the
-project-wide error list gets auto-updated."
+It sets up various hooks for the current buffer so that the error
+list gets auto-updated when certain events (like error-check,
+killing, ... occur.)."
   :init-value nil
   :lighter nil
   (cond
@@ -108,13 +114,15 @@ project-wide error list gets auto-updated."
     (add-hook 'flycheck-after-syntax-check-hook
               #'flycheck-projectile--reload-errors nil t)
     ;; remove the buffer's errors after it is gone
-    (add-hook 'kill-buffer-hook #'flycheck-projectile--reload-errors nil t))
+    (add-hook 'kill-buffer-hook #'flycheck-projectile--remove-buffer-errors
+              nil t))
    (t
     (remove-hook 'flycheck-mode-hook
                  #'flycheck-projectile--handle-flycheck-off t)
     (remove-hook 'flycheck-after-syntax-check-hook
                  #'flycheck-projectile--reload-errors t)
-    (remove-hook 'kill-buffer-hook #'flycheck-projectile--reload-errors t))))
+    (remove-hook 'kill-buffer-hook #'flycheck-projectile--remove-buffer-errors
+                 t))))
 
 (defun flycheck-projectile--handle-flycheck ()
   "Enable `flycheck-projectile--project-buffer-mode' for project buffers.
@@ -173,11 +181,11 @@ If flycheck was enabled, track the buffer with
 (defconst flycheck-projectile-error-list-buffer "*Project errors*"
   "Name of the project-wide error list buffer.")
 
-;;;###autoload
-(defun flycheck-projectile-list-errors (&optional dir)
+(defun flycheck-projectile--show-error-list (&optional dir)
   "Show a list of all the errors in the current project.
-Start the project search at DIR."
-  (interactive)
+Start the project search at DIR. Unlike
+`flycheck-projectile-list-errors', this function does not handle
+calling on the same project twice efficiently."
   (unless (get-buffer flycheck-projectile-error-list-buffer)
     (with-current-buffer (get-buffer-create flycheck-projectile-error-list-buffer)
       ;; Make it not part of any project, so that
@@ -203,6 +211,18 @@ Start the project search at DIR."
       ))
 
   (display-buffer flycheck-projectile-error-list-buffer))
+
+;;;###autoload
+(defun flycheck-projectile-list-errors (&optional dir)
+  "Show a list of all the errors in the current project.
+Start the project search at DIR. Efficiently handle the case of
+the project not changing since the last time this function was
+called."
+  (interactive)
+  (if (and (get-buffer flycheck-projectile-error-list-buffer)
+           (string= (projectile-project-root dir) flycheck-projectile--project))
+      (display-buffer flycheck-projectile-error-list-buffer)
+    (flycheck-projectile--show-error-list)))
 
 (provide 'flycheck-projectile)
 ;;; flycheck-projectile.el ends here
