@@ -18,77 +18,91 @@
 ;; Author: Nikita Bloshchanevich <nikblos@outlook.com>
 ;; URL: https://github.com/nbfalcon/flycheck-projectile
 ;; Package-Requires: ((emacs "25.1") (flycheck "31") (projectile "2.2"))
-;; Version: 0.1.1
+;; Version: 0.1.2
 
 ;;; Commentary:
 ;; Implement per-project errors by leveraging flycheck and projectile.
 
 ;;; Code:
 
-(require 'tabulated-list)
-(require 'flycheck) ;; for error-list constants
-(require 'projectile)
 (require 'cl-lib)
-
-(defconst flycheck-projectile-error-list-buffer "*Project errors*")
+(require 'tabulated-list)
+(require 'projectile)
+(require 'flycheck) ;; for error-list constants
 
 ;; (flycheck-projectile-buffer-errors :: Buffer -> [flycheck-error])
 (defun flycheck-projectile-buffer-errors (buffer)
   "Return BUFFER's flycheck errors."
   (buffer-local-value 'flycheck-current-errors buffer))
 
-;; (flycheck-projectile-gather-errors :: String -> [flycheck-error])
-(defun flycheck-projectile-gather-errors (project)
-  "Gather PROJECT's flycheck errors into a list."
-  (when-let ((buffers (projectile-project-buffers project)))
-    (seq-mapcat #'flycheck-projectile-buffer-errors buffers)))
-
-(defvar flycheck-projectile--project nil "Project whose errors are shown.")
-
 (defcustom flycheck-projectile-blacklisted-checkers '()
-  "Flycheck backends to be ignored in the project-wide error list."
+  "Flycheck backends to be ignored in the project-error list."
   :group 'flycheck-projectile
   :type '(repeat symbol))
 
-(defun flycheck-projectile-make-list-entries ()
-  "Generate the list entries for the project-wide error list."
+;; (flycheck-projectile-gather-errors :: String -> [flycheck-error])
+(defun flycheck-projectile-gather-errors (project)
+  "Gather PROJECT's flycheck errors into a list.
+Projectile must already be loaded when this function is called."
+  (cl-delete-if
+   (lambda (err) (memq (flycheck-error-checker err)
+                       flycheck-projectile-blacklisted-checkers))
+   (when-let ((buffers (projectile-project-buffers project)))
+     (seq-mapcat #'flycheck-projectile-buffer-errors buffers))))
+
+(defun flycheck-projectile-list-entries-from-errors (errors)
+  "Generate the list entries for the project-error list.
+ERRORS is a list of flycheck errors, as returned by
+`flycheck-projectile-gather-errors', for instance. The return
+value is a sorted list of errors usable with
+`tabulated-list-mode'."
   (mapcar
    #'flycheck-error-list-make-entry
-   (cl-delete-if
-    (lambda (err) (memq (flycheck-error-checker err)
-                        flycheck-projectile-blacklisted-checkers))
-    (sort (flycheck-projectile-gather-errors flycheck-projectile--project)
-          (lambda (a b) (or (string< (flycheck-error-filename a)
-                                     (flycheck-error-filename b))
-                            (< (flycheck-error-line a)
-                               (flycheck-error-line b))))))))
+   (sort errors
+         (lambda (a b) (or (string< (flycheck-error-filename a)
+                                    (flycheck-error-filename b))
+                           (< (flycheck-error-line a)
+                              (flycheck-error-line b)))))))
 
 (defun flycheck-projectile-error-list-goto-error (&optional list-pos)
-  "Go to the error in current error-list at LIST-POS.
-LIST-POS defaults to (`point')."
+  "Go to the error in the current error-list at LIST-POS.
+The current error list shall be a tabulated list of flycheck
+errors as shown by `flycheck-projectile-list-errors' or
+`flycheck-list-errors'. LIST-POS defaults to (`point')."
   (interactive)
   (when-let ((err (tabulated-list-get-id list-pos))
              (buf (flycheck-error-buffer err))
              (pos (flycheck-error-pos err)))
     (pop-to-buffer buf 'other-window)
     (goto-char pos)))
+
+(defvar flycheck-projectile--project nil
+  "Project whose errors are currently shown.")
+
+(defun flycheck-projectile-make-list-entries ()
+  "Make the list entries for the global project-error list.
+See `flycheck-projectile-list-entries-from-errors' for details."
+  (flycheck-projectile-list-entries-from-errors
+   (flycheck-projectile-gather-errors flycheck-projectile--project)))
+
+(defconst flycheck-projectile-error-list-buffer "*Project errors*")
 
 (defun flycheck-projectile--reload-errors ()
-  "Refresh the errors in the project-wide error list."
+  "Refresh the errors in the project-error list."
   (with-current-buffer flycheck-projectile-error-list-buffer
     (revert-buffer)))
 
 (defun flycheck-projectile--maybe-reload ()
-  "Reload the project-wide error list for its projects' buffers only.
-If the current buffer is part of `flycheck-projectile--project',
-reload the project-wide error list."
+  "Reload the project-error list for its projects' buffers only.
+Reload it only if the current buffer is a file in
+`flycheck-projectile--project'."
   (when (projectile-project-buffer-p (current-buffer)
                                      flycheck-projectile--project)
     (flycheck-projectile--reload-errors)))
 
 (defun flycheck-projectile--handle-flycheck-off ()
   "Handle `flycheck-mode' being turned off.
-Reloads the project-wide error list, if the current buffer does
+Reloads the project-error list, if the current buffer does
 not have flycheck-mode enabled."
   (unless flycheck-mode
     (flycheck-projectile--reload-errors)))
@@ -169,7 +183,7 @@ If flycheck was enabled, track the buffer with
     map))
 (define-derived-mode flycheck-projectile--error-list-mode tabulated-list-mode
   "Flycheck project errors"
-  "The mode for this plugins' project-wide error list."
+  "The mode for this plugins' project-error list."
   (setq tabulated-list-format flycheck-error-list-format
         tabulated-list-padding flycheck-error-list-padding
         ;; we must sort manually, because there are two sort keys: first File
@@ -178,20 +192,17 @@ If flycheck was enabled, track the buffer with
         tabulated-list-entries #'flycheck-projectile-make-list-entries)
   (tabulated-list-init-header))
 
-(defconst flycheck-projectile-error-list-buffer "*Project errors*"
-  "Name of the project-wide error list buffer.")
-
-(defun flycheck-projectile--show-error-list (&optional dir)
-  "Show a list of all the errors in the current project.
-Start the project search at DIR. Unlike
-`flycheck-projectile-list-errors', this function does not handle
-calling on the same project twice efficiently."
+(defun flycheck-projectile--make-error-list (project)
+  "Create and return the global error list buffer.
+PROJECT specifies the project to watch. Unlike
+`flycheck-projectile-list-errors', this function doesn't optimize
+the case of the project not changing after calling it twice."
   (unless (get-buffer flycheck-projectile-error-list-buffer)
     (with-current-buffer (get-buffer-create flycheck-projectile-error-list-buffer)
       ;; Make it not part of any project, so that
       ;; `flycheck-projectile--project-buffer-mode' wont get enabled for it.
       (setq default-directory nil)
-      ;; If the user kills the buffer, leave no hooks behind; for they would
+      ;; If the user kills the buffer, leave no hooks behind, because they would
       ;; impair the performance. Pressing `q' kills the buffer.
       (add-hook 'kill-buffer-hook #'flycheck-projectile--global-teardown nil t)
       (flycheck-projectile--error-list-mode)))
@@ -199,18 +210,16 @@ calling on the same project twice efficiently."
   (when flycheck-projectile--project ;; the user didn't press q
     (flycheck-projectile--global-teardown))
 
-  (let ((project (projectile-ensure-project (projectile-project-root dir))))
-    (flycheck-projectile--enable-project-buffer-mode project)
-    (with-current-buffer flycheck-projectile-error-list-buffer
-      (setq flycheck-projectile--project project)
+  (flycheck-projectile--enable-project-buffer-mode project)
+  (with-current-buffer flycheck-projectile-error-list-buffer
+    (setq flycheck-projectile--project project)
 
-      ;; even if the user presses C-g here, the kill hook was already set up;
-      ;; this way, they can just kill the buffer to restore performance.
-      (flycheck-projectile--global-setup)
-      (revert-buffer) ;; reload the list
-      ))
+    ;; even if the user presses C-g here, the kill hook was already set up;
+    ;; this way, they can just kill the buffer to restore performance.
+    (flycheck-projectile--global-setup)
+    (revert-buffer) ;; reload the list
 
-  (display-buffer flycheck-projectile-error-list-buffer))
+    (current-buffer)))
 
 ;;;###autoload
 (defun flycheck-projectile-list-errors (&optional dir)
@@ -219,10 +228,15 @@ Start the project search at DIR. Efficiently handle the case of
 the project not changing since the last time this function was
 called."
   (interactive)
-  (if (and (get-buffer flycheck-projectile-error-list-buffer)
-           (string= (projectile-project-root dir) flycheck-projectile--project))
-      (display-buffer flycheck-projectile-error-list-buffer)
-    (flycheck-projectile--show-error-list)))
+  (let ((project (projectile-ensure-project (projectile-project-root dir))))
+    (display-buffer
+     (or (and (string= project flycheck-projectile--project)
+              ;; The project didn't change *and* we have the old buffer? Reuse
+              ;; it.
+              (get-buffer flycheck-projectile-error-list-buffer))
+         ;; Either the project changed or the old buffer is dead. Either way,
+         ;; make a new list.
+         (flycheck-projectile--make-error-list project)))))
 
 (provide 'flycheck-projectile)
 ;;; flycheck-projectile.el ends here
