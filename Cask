@@ -4,4 +4,4 @@
 (package-file "flycheck-projectile.el")
 
 (development
- (depends-on "elsa"))
+ (depends-on "ert-runner"))

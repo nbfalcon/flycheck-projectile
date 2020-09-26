@@ -1,3 +1,5 @@
 /.cask/
 *.elc
 /README.html
+ert-profile
+ert-profile~

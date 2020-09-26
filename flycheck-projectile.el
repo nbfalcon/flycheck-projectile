@@ -18,7 +18,7 @@
 ;; Author: Nikita Bloshchanevich <nikblos@outlook.com>
 ;; URL: https://github.com/nbfalcon/flycheck-projectile
 ;; Package-Requires: ((emacs "25.1") (flycheck "31") (projectile "2.2"))
-;; Version: 0.1.3
+;; Version: 0.1.4
 
 ;;; Commentary:
 ;; Implement per-project errors by leveraging flycheck and projectile.
@@ -28,10 +28,10 @@
 (require 'cl-lib)
 
 (eval-when-compile
-  ;; `flycheck-error-list-mode-map', error list constants
+  ;; `flycheck-error-list-mode-map'
   (require 'flycheck))
 
-;;; `declare-function'
+;;; global `declare-function'
 (declare-function projectile-project-buffers "projectile" (project))
 (declare-function projectile-project-buffer-p "projectile" (buffer project))
 
@@ -195,9 +195,10 @@ If flycheck was enabled, track the buffer with
     map))
 (define-derived-mode flycheck-projectile--error-list-mode tabulated-list-mode
   "Flycheck project errors"
-  "The mode for this plugins' project-error list."
-  (setq tabulated-list-format (eval-when-compile flycheck-error-list-format)
-        tabulated-list-padding (eval-when-compile flycheck-error-list-padding)
+  "The mode for this plugins' project-error list.
+Requires `flycheck' to already be loaded when enabling."
+  (setq tabulated-list-format flycheck-error-list-format
+        tabulated-list-padding flycheck-error-list-padding
         ;; we must sort manually, because there are two sort keys: first File
         ;; then Line.
         tabulated-list-sort-key nil
