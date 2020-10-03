@@ -18,7 +18,7 @@
 ;; Author: Nikita Bloshchanevich <nikblos@outlook.com>
 ;; URL: https://github.com/nbfalcon/flycheck-projectile
 ;; Package-Requires: ((emacs "25.1") (flycheck "31") (projectile "2.2"))
-;; Version: 0.1.4
+;; Version: 0.1.5
 
 ;;; Commentary:
 ;; Implement per-project errors by leveraging flycheck and projectile.
@@ -243,8 +243,9 @@ the project not changing since the last time this function was
 called."
   (interactive)
   (require 'projectile)
-  (declare-function projectile-acquire-root "projectile" (&optional dir))
-  (let ((project (projectile-acquire-root dir)))
+  (declare-function projectile-ensure-project "projectile" (project))
+  (declare-function projectile-project-root "projectile" (&optional dir))
+  (let ((project (projectile-ensure-project (projectile-project-root dir))))
     (display-buffer
      (or (and (string= project flycheck-projectile--project)
               ;; The project didn't change *and* we have the old buffer? Reuse
