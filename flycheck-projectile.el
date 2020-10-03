@@ -97,7 +97,11 @@ See `flycheck-projectile-list-entries-from-errors' for details."
   (flycheck-projectile-list-entries-from-errors
    (flycheck-projectile-gather-errors flycheck-projectile--project)))
 
-(defconst flycheck-projectile-error-list-buffer "*Project errors*")
+(defcustom flycheck-projectile-error-list-buffer "*Project errors*"
+  "Name of the project error buffer.
+Created by `flycheck-projectile-list-errors'."
+  :group 'flycheck-projectile
+  :type 'string)
 
 (defun flycheck-projectile--reload-errors ()
   "Refresh the errors in the project-error list."
@@ -151,20 +155,24 @@ killing, ... occur.)."
                  t))))
 
 (defun flycheck-projectile--handle-flycheck ()
-  "Enable `flycheck-projectile--project-buffer-mode' for project buffers.
-If flycheck was enabled, track the buffer with
-`flycheck-projectile--project-buffer-mode'. Disable that mode otherwise."
-  (when (projectile-project-buffer-p (current-buffer) flycheck-projectile--project)
+  "`flycheck-mode' hook to turn on `flycheck-projectile--project-buffer-mode'.
+If flycheck was enabled and the current buffer is part of
+`flycheck-projectile--project', turn on
+`flycheck-projectile--project-buffer-mode' and turn it off
+otherwise."
+  (when (projectile-project-buffer-p (current-buffer)
+                                     flycheck-projectile--project)
     (flycheck-projectile--project-buffer-mode (if flycheck-mode 1 -1))))
 
 (defun flycheck-projectile--disable-project-buffer-mode ()
-  "Disable `flycheck-projectile--project-buffer-mode' for all buffers."
+  "Disable `flycheck-projectile--project-buffer-mode' globally."
   (dolist (buffer (buffer-list))
     (with-current-buffer buffer
       (flycheck-projectile--project-buffer-mode -1))))
 
 (defun flycheck-projectile--enable-project-buffer-mode (project)
-  "Enable `flycheck-projectile--project-buffer-mode' for PROJECT's buffers."
+  "Enable `flycheck-projectile--project-buffer-mode' for PROJECT.
+Enable in all of PROJECT's buffers."
   (dolist (buffer (projectile-project-buffers project))
     (with-current-buffer buffer
       ;; only buffers with flycheck-mode on can contribute and as such only
@@ -188,15 +196,15 @@ If flycheck was enabled, track the buffer with
   (interactive)
   (quit-window t))
 
-(defvar flycheck-projectile--error-list-mode-map
+(defvar flycheck-projectile-error-list-mode-map
   (let ((map (copy-keymap (eval-when-compile flycheck-error-list-mode-map))))
     (define-key map (kbd "RET") #'flycheck-projectile-error-list-goto-error)
     (define-key map (kbd "q") #'flycheck-projectile--quit-kill-window)
     map))
-(define-derived-mode flycheck-projectile--error-list-mode tabulated-list-mode
+(define-derived-mode flycheck-projectile-error-list-mode tabulated-list-mode
   "Flycheck project errors"
   "The mode for this plugins' project-error list.
-Requires `flycheck' to already be loaded when enabling."
+`flycheck' must already be loaded when this mode is enabled."
   (setq tabulated-list-format flycheck-error-list-format
         tabulated-list-padding flycheck-error-list-padding
         ;; we must sort manually, because there are two sort keys: first File
@@ -219,7 +227,7 @@ the case of the project not changing after calling it twice."
       ;; If the user kills the buffer, leave no hooks behind, because they would
       ;; impair the performance. Pressing `q' kills the buffer.
       (add-hook 'kill-buffer-hook #'flycheck-projectile--global-teardown nil t)
-      (flycheck-projectile--error-list-mode)))
+      (flycheck-projectile-error-list-mode)))
 
   (when flycheck-projectile--project ;; the user didn't press q
     (flycheck-projectile--global-teardown))
