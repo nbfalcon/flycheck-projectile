@@ -18,7 +18,7 @@
 ;; Author: Nikita Bloshchanevich <nikblos@outlook.com>
 ;; URL: https://github.com/nbfalcon/flycheck-projectile
 ;; Package-Requires: ((emacs "25.1") (flycheck "31") (projectile "2.2"))
-;; Version: 0.1.5
+;; Version: 0.2.0
 
 ;;; Commentary:
 
@@ -27,10 +27,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-
-(eval-when-compile
-  ;; `flycheck-error-list-mode-map'
-  (require 'flycheck))
+(require 'flycheck)                     ; `flycheck-error-list-mode-map'
 
 ;;; global `declare-function'
 (declare-function projectile-project-buffers "projectile" (project))
@@ -62,9 +59,7 @@ called."
 ERRORS is a list of flycheck errors, as returned by
 `flycheck-projectile-gather-errors', for instance. The return
 value is a sorted list of errors usable with
-`tabulated-list-mode'.
-
-`flycheck' must already loaded when this function is called."
+`tabulated-list-mode'."
   (declare-function flycheck-error-list-make-entry "flycheck" (err))
   (mapcar
    #'flycheck-error-list-make-entry
@@ -78,9 +73,7 @@ value is a sorted list of errors usable with
   "Go to the error in the current error-list at LIST-POS.
 The current error list shall be a tabulated list of flycheck
 errors as shown by `flycheck-projectile-list-errors' or
-`flycheck-list-errors'. LIST-POS defaults to (`point').
-
-`flycheck' must already loaded when this function is called."
+`flycheck-list-errors'. LIST-POS defaults to (`point')."
   (interactive)
   (declare-function flycheck-error-pos "flycheck" (err))
   (when-let ((err (tabulated-list-get-id list-pos))
@@ -176,8 +169,8 @@ otherwise."
 Enable in all of PROJECT's buffers."
   (dolist (buffer (projectile-project-buffers project))
     (with-current-buffer buffer
-      ;; only buffers with flycheck-mode on can contribute and as such only
-      ;; those should be watched
+      ;; Only buffers with flycheck enabled can contribute errors and as such
+      ;; only those should be watched.
       (when flycheck-mode
         (flycheck-projectile--project-buffer-mode 1)))))
 
@@ -198,14 +191,13 @@ Enable in all of PROJECT's buffers."
   (quit-window t))
 
 (defvar flycheck-projectile-error-list-mode-map
-  (let ((map (copy-keymap (eval-when-compile flycheck-error-list-mode-map))))
+  (let ((map (copy-keymap flycheck-error-list-mode-map)))
     (define-key map (kbd "RET") #'flycheck-projectile-error-list-goto-error)
     (define-key map (kbd "q") #'flycheck-projectile--quit-kill-window)
     map))
 (define-derived-mode flycheck-projectile-error-list-mode tabulated-list-mode
   "Flycheck project errors"
-  "The mode for this plugins' project-error list.
-`flycheck' must already be loaded when this mode is enabled."
+  "The mode for this plugins' project-error list."
   (setq tabulated-list-format flycheck-error-list-format
         tabulated-list-padding flycheck-error-list-padding
         ;; we must sort manually, because there are two sort keys: first File
@@ -219,7 +211,6 @@ Enable in all of PROJECT's buffers."
 PROJECT specifies the project to watch. Unlike
 `flycheck-projectile-list-errors', this function doesn't optimize
 the case of the project not changing after calling it twice."
-  (require 'flycheck)
   (unless (get-buffer flycheck-projectile-error-list-buffer)
     (with-current-buffer (get-buffer-create flycheck-projectile-error-list-buffer)
       ;; If the user kills the buffer, leave no hooks behind, because they would
