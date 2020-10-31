@@ -222,9 +222,6 @@ the case of the project not changing after calling it twice."
   (require 'flycheck)
   (unless (get-buffer flycheck-projectile-error-list-buffer)
     (with-current-buffer (get-buffer-create flycheck-projectile-error-list-buffer)
-      ;; Make it not part of any project, so that
-      ;; `flycheck-projectile--project-buffer-mode' wont get enabled for it.
-      (setq default-directory nil)
       ;; If the user kills the buffer, leave no hooks behind, because they would
       ;; impair the performance. Pressing `q' kills the buffer.
       (add-hook 'kill-buffer-hook #'flycheck-projectile--global-teardown nil t)
