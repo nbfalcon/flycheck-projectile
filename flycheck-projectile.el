@@ -21,6 +21,7 @@
 ;; Version: 0.1.5
 
 ;;; Commentary:
+
 ;; Implement per-project errors by leveraging flycheck and projectile.
 
 ;;; Code:
